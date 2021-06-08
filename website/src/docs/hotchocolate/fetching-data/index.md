@@ -376,31 +376,98 @@ public class Query
 
 # Accessing parent values
 
-When selecting a field from a
+When selecting a field from an object type, we might depend on another field of that type.
+
+```sdl
+type Query {
+  me: User!;
+}
+
+type User {
+  id: ID!;
+  friends: [User!]!;
+}
+```
+
+<!-- todo: not yet happy with this -->
+
+In the above example we might require the `id` of the user to fetch his friends. Our `UserType` is most likely backed by a `User` CLR type. When executing the `friends` resolver, it is executed in the context of a concrete `User` instance that was resolved by the `me` resolver.
 
 <ExampleTabs>
 <ExampleTabs.Annotation>
 
-```csharp
+In the Annotation-based approach we can just access the properties using the `this` keyword.
 
+<!-- todo: is this discouraged? -->
+
+```csharp
+public class User
+{
+    public string Id { get; set; }
+
+    public List<User> GetFriends()
+    {
+        var currentUserId = this.Id;
+
+        // Omitted code for brevity
+    }
+}
 ```
+
+There's also a `[Parent]` attribute that injects the parent into the resolver.
+
+```csharp
+public class User
+{
+    public string Id { get; set; }
+
+    public List<User> GetFriends([Parent] User parent)
+    {
+        var currentUserId = parent.Id;
+
+        // Omitted code for brevity
+    }
+}
+```
+
+This is especially useful when using [type extensions](/docs/hotchocolate/defining-a-schema/extending-types).
 
 </ExampleTabs.Annotation>
 <ExampleTabs.Code>
 
-```csharp
+<!-- todo: non-delegate -->
 
+```csharp
+public class User
+{
+    public string Id { get; set; }
+}
+
+public class UserType : ObjectType<User>
+{
+    protected override void Configure(IObjectTypeDescriptor<User> descriptor)
+    {
+        descriptor
+            .Field("friends")
+            .Resolve(context =>
+            {
+                User currentUser = context.Parent<User>();
+
+                // Omitted code for brevity
+            });
+    }
+}
 ```
 
 </ExampleTabs.Code>
 <ExampleTabs.Schema>
 
-```csharp
-
-```
+TODO
 
 </ExampleTabs.Schema>
 </ExampleTabs>
+
+<!-- todo: describe how to access parents further up in the tree -->
 
 # Error Handling
 
