@@ -9,11 +9,8 @@ When it comes to fetching data in a GraphQL server, it will always come down to 
 **A resolver is a generic function that fetches data from an arbitrary data source for a particular field.**
 
 Which means every field in your graph is associated with a specific resolver function to fetch or select its data.
-Even if there isn't a resolver defined for one field, Hot Chocolate will create a default resolver for this particular field behind the scenes.
 
-In Hot Chocolate, a default resolver is a compiled function for a specific field that accesses a property of its parent value, which matches the field name.
-
-<!-- todo: maybe move the part about default (property) resolvers down to defining a resolver -->
+TODO: this feels empty
 
 ## Resolver Tree
 
@@ -42,17 +39,25 @@ graph LR
   D --> E("name: StringType")
 ```
 
-A resolver tree in the end is nothing else than a resolver chain where each branch can be executed in parallel.
+This tree will be traversed by the execution engine, starting with one or more root resolvers. In the above example the `me` field represents the one, and in this case only, root resolver.
 
-The execution engine will start traversing this tree from top to bottom, starting with one or more root resolvers. In the case of the above example it will start at `me` and then follow along the paths.
+TODO: Explain execution chain and order
 
-The execution of a branch is finished, once a field returning a scalar value, like the `name` string, is reached. As soon as all branches have reached their end, the execution engine deems the operation finished and returns the result.
+If a path branches into two or more paths, the execution engine will follow and execute these paths in parallel. The execution of a path finishes, once there are no more subselections of fields, i.e. we have reached a scalar value. The operation finishes and the result is returned to the client, once all paths have been executed. <!-- todo: note about defer -->
 
 # Defining a Resolver
 
-As previously mentioned a resolver at its core is just a function and that is also how they are mostly defined.
+TODO: Some introduction
+
+## Properties
+
+Hot Chocolate automatically convertes properties with a public get accessor to default resolvers, returning the properties value.
+
+Properties are also covered in detail by the [object type documentation](/docs/hotchocolate/defining-a-schema/object-types).
 
 ## Regular Resolver
+
+A regular resolver is just a simple method, which returns a value.
 
 <ExampleTabs>
 <ExampleTabs.Annotation>
@@ -140,7 +145,7 @@ public class Startup
 }
 ```
 
-<!-- todo: resolver delegate -->
+TODO: Resolver delegate
 
 </ExampleTabs.Schema>
 </ExampleTabs>
@@ -232,7 +237,7 @@ public class Startup
 }
 ```
 
-<!-- todo: resolver delegate -->
+TODO: Resolver delegate
 
 </ExampleTabs.Schema>
 </ExampleTabs>
@@ -314,9 +319,7 @@ We can access the `UserService` in our resolvers like the following.
 public class Query
 {
     public List<User> GetUsers([Service] UserService userService)
-    {
-        return userService.GetUsers();
-    }
+        => userService.GetUsers();
 }
 ```
 
@@ -327,9 +330,7 @@ public class Query
 public class Query
 {
     public List<User> GetUsers([Service] UserService userService)
-    {
-        return userService.GetUsers();
-    }
+        => userService.GetUsers();
 }
 
 public class QueryType: ObjectType<Query>
@@ -363,9 +364,7 @@ descriptor
 public class Query
 {
     public List<User> GetUsers([Service] UserService userService)
-    {
-        return userService.GetUsers();
-    }
+        => userService.GetUsers();
 }
 ```
 
@@ -374,7 +373,23 @@ public class Query
 </ExampleTabs.Schema>
 </ExampleTabs>
 
+## Scoped Services
+
+Scoped services can be injected in a similar fashion. The only difference is that we are now using the `[ScopedService]` instead of the `[Service]` attribute.
+
+```csharp
+public class Query
+{
+    public List<User> GetUsers([ScopedService] UserService userService)
+        => userService.GetUsers();
+}
+```
+
+TODO: How is this done in Code-first?
+
 # Accessing parent values
+
+TODO: This explanation needs work
 
 When selecting a field from an object type, we might depend on another field of that type.
 
@@ -389,8 +404,6 @@ type User {
 }
 ```
 
-<!-- todo: not yet happy with this -->
-
 In the above example we might require the `id` of the user to fetch his friends. Our `UserType` is most likely backed by a `User` CLR type. When executing the `friends` resolver, it is executed in the context of a concrete `User` instance that was resolved by the `me` resolver.
 
 <ExampleTabs>
@@ -398,7 +411,7 @@ In the above example we might require the `id` of the user to fetch his friends.
 
 In the Annotation-based approach we can just access the properties using the `this` keyword.
 
-<!-- todo: is this discouraged? -->
+TODO: Is the following discouraged?
 
 ```csharp
 public class User
@@ -467,7 +480,7 @@ TODO
 </ExampleTabs.Schema>
 </ExampleTabs>
 
-<!-- todo: describe how to access parents further up in the tree -->
+TODO: describe how to access parents further up in the tree
 
 # Error Handling
 
@@ -475,9 +488,7 @@ TODO
 
 # Context Data
 
-TODO
-
-<!-- todo: state as well? -->
+TODO: Cover Scoped and Local here and Global in another "Server" document
 
 # Accessing HttpContext
 
@@ -495,235 +506,24 @@ public string Foo(string id, [Service] IHttpContextAccessor httpContextAccessor)
 
 Learn more about [injecting services into resolvers](#injecting-services).
 
-<!-- Okay, let's dissect a little further here. A resolver chain always starts with one or many root resolver, which is in our case `me()` and then follows the path along. In this scenario, the next resolver would be `name()`, which is also the last resolver in our chain. As soon as `me` has fetched the user profile of the currently logged-in user, Hot Chocolate will immediately start executing the next resolver and feeding in the previous object value, also called a parent or parent value in spec language. Let's say the parent value looks like this.
+# Stuff
+
+TODO: Where should the following topics be placed?
+
+## ResolveWith
+
+TODO
+
+## IResolverContext
+
+The `IResolverContext` is mainly used in Code-first delegate resolvers, where it is passed as the first argument. We can also inject it as an argument into methods though.
 
 ```csharp
-var parent = new User
-{
-  Id = "user-1",
-  Name = "ChilliCream",
-  ...
-}
-````
-
-Then the `name()` resolver can just access the `Name` property of the parent value and simply return it. As soon as all resolvers have been completed, the execution engine would return the following GraphQL result, provided that everything went successful.
-
-```json
-{
-  "data": {
-    "me": {
-      "name": "ChilliCream"
-    }
-  }
-}
-```
-
-Excellent, now that we know what resolvers are and how they work in a bigger picture, how can we start writing one. Let's jump to the next section and find out.
-
-# Defining a resolver
-
-A resolver is a function that takes zero or many arguments and returns one value. The simplest resolver to write is a resolver that takes zero arguments and returns a simple value type (e.g., a string). For simplicity, we will do precisely that in our first example. Creating a resolver named `Say` with no arguments, which returns just a static string value `Hello World!`.
-
-## Basic resolver example
-
-<ExampleTabs>
-<ExampleTabs.Annotation>
-
-```csharp
-// Query.cs
 public class Query
 {
-    public string Say() => "Hello World!";
-}
-
-// Startup.cs
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services
-            .AddGraphQLServer()
-            .AddQueryType<Query>();
-    }
-
-    // Omitted code for brevity
-}
-```
-
-</ExampleTabs.Annotation>
-<ExampleTabs.Code>
-
-```csharp
-// Query.cs
-public class Query
-{
-    public string Say() => "Hello World!";
-}
-
-// QueryType.cs
-public class QueryType
-    : ObjectType<Query>
-{
-    protected override void Configure(
-        IObjectTypeDescriptor<Query> descriptor)
-    {
-        descriptor
-            .Field(f => f.Say())
-            .Type<NonNullType<StringType>>();
-    }
-}
-
-// Startup.cs
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services
-            .AddGraphQLServer()
-            .AddQueryType<QueryType>();
-    }
-
-    // Omitted code for brevity
-}
-```
-
-</ExampleTabs.Code>
-<ExampleTabs.Schema>
-
-```csharp
-// Query.cs
-public class Query
-{
-    public string Say() => "Hello World!";
-}
-
-// Startup.cs
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services
-            .AddGraphQLServer()
-            .AddDocumentFromString(@"
-                type Query {
-                    say: String!
-                }
-            ")
-            .BindComplexType<Query>();
-    }
-
-    // Omitted code for brevity
-}
-```
-
-</ExampleTabs.Schema>
-</ExampleTabs>
-
-When comparing all three approaches side-by-side, we can see very quickly that they all look nearly the same. They all have the `Query` type in common, which is identical in all three approaches. Regardless, the `Query` type contains a method named `Say`, which is our resolver, in fact, the most significant bit here. The `Say` method will be translated into the `say` field on the schema side as soon as Hot Chocolate is initialized. As a small side note here, all three approaches will result in the same `SDL`.
-
-```sdl
-type Query {
-  say: String!
-}
-```
-
-Let's get back to where the approaches differentiate—the `Startup` class, which contains the service configuration that slightly differs in each approach. In the **annotation-based** approach, we bind the `Query` type to the GraphQL schema. Easy, quick, and without writing any GraphQL specific binding code. Hot Chocolate will do the hard part and infer everything from the type itself. In the **code-first** approach, we bind a meta-type, the `QueryType` type, which contains the GraphQL configuration for the `Query` type, to the GraphQL schema. Instead of inferring the GraphQL type, Hot Chocolate will take our specific GraphQL configuration and creates the GraphQL schema out of it. In the **schema-first** approach, we provide Hot Chocolate the `SDL` directly, and Hot Chocolate will match that to our resolver. Now that we know how to define a resolver in all three approaches, it's time to learn how to pass arguments into a resolver. Let's head to the next section.
-
-# Resolver Arguments
-
-A resolver argument, not to be confused with a field argument in GraphQL, can be a field argument value, a DataLoader, a DI service, state, or even context like a parent value. We will go through a couple of examples where we see all types of resolver argument in action. For that, we will use the annotation-based approach because it makes no difference.
-
-## Field argument example
-
-```csharp
-// Query.cs
-public class Query
-{
-    public string Say(string name) => $"Hello {name}!";
-}
-
-// Startup.cs
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services
-            .AddGraphQLServer()
-            .AddQueryType<Query>();
-    }
-
-    // Omitted code for brevity
-}
-```
-
-```sdl
-type Query {
-  say(name: String!): String!
-}
-```
-
-## DataLoader argument example
-
-```csharp
-// Query.cs
-public class Query
-{
-    public Task<Person> GetPerson(int id, MyDataLoader dataLoader) => dataLoader.LoadAsync(id);
-}
-
-// Person.cs
-public record Person(string name);
-
-// MyDataLoader.cs
-public class MyDataLoader
-    : DataLoaderBase<int, Person>
-{
-    public MyDataLoader(IBatchScheduler scheduler)
-        : base(scheduler)
-    { }
-
-    protected override ValueTask<IReadOnlyList<Result<Person>>> FetchAsync(
-        IReadOnlyList<int> keys,
-        CancellationToken cancellationToken)
+    public string Foo(IResolverContext context)
     {
         // Omitted code for brevity
     }
 }
-
-// Startup.cs
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services
-            .AddGraphQLServer()
-            .AddQueryType<Query>()
-            .AddDataLoader<MyDataLoader>();
-    }
-
-    // Omitted code for brevity
-}
 ```
-
-```sdl
-type Query {
-  person(id: Int!): Person!
-}
-
-type Person {
-  name: String!
-}
-```
-
-# Naming Rules
-
-- How should we name things
-- How is a method name translated
-
-# Best Practices
-
-# Resolver Pipeline
-
-# Error Handling
-
--->
