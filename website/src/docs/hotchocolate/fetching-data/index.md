@@ -8,9 +8,7 @@ When it comes to fetching data in a GraphQL server, it will always come down to 
 
 **A resolver is a generic function that fetches data from an arbitrary data source for a particular field.**
 
-Which means every field in your graph is associated with a specific resolver function to fetch or select its data.
-
-TODO: this feels empty
+We can think of each field in our query as a method of the previous type which returns the next type.
 
 ## Resolver Tree
 
@@ -23,31 +21,34 @@ query {
   me {
     name
     company {
+      id
       name
     }
   }
 }
 ```
 
-In Hot Chocolate, this query results in the following resolver tree.
+In Hot Chocolate this query results in the following resolver tree.
 
 ```mermaid
 graph LR
-  A(query: QueryType) --> B("me: UserType")
-  B --> C("name: StringType")
-  B --> D("company: CompanyType")
-  D --> E("name: StringType")
+  A(query: QueryType) --> B(1 me: UserType)
+  B --> C(2 name: StringType)
+  B --> D(2 company: CompanyType)
+  D --> E(3 id: IdType)
+  D --> F(3 name: StringType)
 ```
 
-This tree will be traversed by the execution engine, starting with one or more root resolvers. In the above example the `me` field represents the one, and in this case only, root resolver.
+This tree will be traversed by the execution engine, starting with one or more root resolvers. In the above example the `me` field represents the only root resolver.
 
-TODO: Explain execution chain and order
+If a path branches into two or more paths, the execution engine will follow and execute these paths in parallel. The execution of a path finishes, once there are no more subselections of fields, i.e. when we have reached a scalar value. The operation finishes and the result is returned to the client, once all paths have been executed.
 
-If a path branches into two or more paths, the execution engine will follow and execute these paths in parallel. The execution of a path finishes, once there are no more subselections of fields, i.e. we have reached a scalar value. The operation finishes and the result is returned to the client, once all paths have been executed. <!-- todo: note about defer -->
+_This is of course an oversimplification that differs from the actual implementation._
 
 # Defining a Resolver
 
 TODO: Some introduction
+~
 
 ## Properties
 
@@ -278,10 +279,6 @@ descriptor
     });
 ```
 
-## Constant Resolver
-
-TODO
-
 # Injecting Services
 
 Resolvers integrate nicely with `Microsoft.Extensions.DependecyInjection`.
@@ -387,6 +384,34 @@ public class Query
 
 TODO: How is this done in Code-first?
 
+## IHttpContextAccessor
+
+Like any other service we can also inject the `IHttpContextAccessor` into our resolver. This is useful, if we for example need to set a header or cookie.
+
+```csharp
+public string Foo(string id, [Service] IHttpContextAccessor httpContextAccessor)
+{
+    if (httpContextAccessor.HttpContext != null)
+    {
+        // Omitted code for brevity
+    }
+}
+```
+
+## IResolverContext
+
+The `IResolverContext` is mainly used in delegate resolvers of the Code-first approach, but we can also access it in the Annotation-based approach, by simply injecting it.
+
+```csharp
+public class Query
+{
+    public string Foo(IResolverContext context)
+    {
+        // Omitted code for brevity
+    }
+}
+```
+
 # Accessing parent values
 
 TODO: This explanation needs work
@@ -490,40 +515,6 @@ TODO
 
 TODO: Cover Scoped and Local here and Global in another "Server" document
 
-# Accessing HttpContext
-
-Like any other service we can inject the `IHttpContextAccessor` into our resolver. This is useful, if we for example need to set a header or cookie.
-
-```csharp
-public string Foo(string id, [Service] IHttpContextAccessor httpContextAccessor)
-{
-    if (httpContextAccessor.HttpContext != null)
-    {
-        // Omitted code for brevity
-    }
-}
-```
-
-Learn more about [injecting services into resolvers](#injecting-services).
-
-# Stuff
-
-TODO: Where should the following topics be placed?
-
-## ResolveWith
+# ResolveWith
 
 TODO
-
-## IResolverContext
-
-The `IResolverContext` is mainly used in Code-first delegate resolvers, where it is passed as the first argument. We can also inject it as an argument into methods though.
-
-```csharp
-public class Query
-{
-    public string Foo(IResolverContext context)
-    {
-        // Omitted code for brevity
-    }
-}
-```
