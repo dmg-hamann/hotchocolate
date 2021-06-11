@@ -1,0 +1,560 @@
+---
+title: "Resolvers"
+---
+
+import { ExampleTabs } from "../../../components/mdx/example-tabs"
+
+When it comes to fetching data in a GraphQL server, it will always come down to a resolver.
+
+**A resolver is a generic function that fetches data from an arbitrary data source for a particular field.**
+
+We can think of each field in our query as a method of the previous type which returns the next type.
+
+## Resolver Tree
+
+A resolver tree is a projection of a GraphQL operation that is prepared for execution.
+
+For better understanding, let's imagine we have a simple GraphQL query like the following, where we select some fields of the currently logged-in user.
+
+```graphql
+query {
+  me {
+    name
+    company {
+      id
+      name
+    }
+  }
+}
+```
+
+In Hot Chocolate this query results in the following resolver tree.
+
+```mermaid
+graph LR
+  A(query: QueryType) --> B(1 me: UserType)
+  B --> C(2 name: StringType)
+  B --> D(2 company: CompanyType)
+  D --> E(3 id: IdType)
+  D --> F(3 name: StringType)
+```
+
+This tree will be traversed by the execution engine, starting with one or more root resolvers. In the above example the `me` field represents the only root resolver.
+
+TODO: Add more explanation
+
+If a path branches into two or more paths, the execution engine will follow and execute these paths in parallel. The execution of a path finishes, once there are no more subselections of fields, i.e. when we have reached a scalar value. The operation finishes and the result is returned to the client, once all paths have been executed.
+
+_This is of course an oversimplification that differs from the actual implementation._
+
+# Defining a Resolver
+
+Resolvers can be defined in a way that should feel very familiar to C# developers, especially in the Annotation-based approach.
+
+## Properties
+
+Hot Chocolate automatically convertes properties with a public get accessor to default resolvers, returning the properties value.
+
+Properties are also covered in detail by the [object type documentation](/docs/hotchocolate/defining-a-schema/object-types).
+
+## Regular Resolver
+
+A regular resolver is just a simple method, which returns a value.
+
+<ExampleTabs>
+<ExampleTabs.Annotation>
+
+```csharp
+public class Query
+{
+    public string Foo() => "Bar";
+}
+
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services
+            .AddGraphQLServer()
+            .AddQueryType<Query>();
+    }
+}
+```
+
+</ExampleTabs.Annotation>
+<ExampleTabs.Code>
+
+```csharp
+public class Query
+{
+    public string Foo() => "Bar";
+}
+
+public class QueryType: ObjectType<Query>
+{
+    protected override void Configure(IObjectTypeDescriptor<Query> descriptor)
+    {
+        descriptor
+            .Field(f => f.Foo())
+            .Type<NonNullType<StringType>>();
+    }
+}
+
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services
+            .AddGraphQLServer()
+            .AddQueryType<QueryType>();
+    }
+}
+```
+
+We can also provide a resolver delegate by using the `Resolve` method.
+
+```csharp
+descriptor
+    .Field("foo")
+    .Resolve(context =>
+    {
+        return "Bar";
+    });
+```
+
+</ExampleTabs.Code>
+<ExampleTabs.Schema>
+
+```csharp
+public class Query
+{
+    public string Foo() => "Bar";
+}
+
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services
+            .AddGraphQLServer()
+            .AddDocumentFromString(@"
+                type Query {
+                    foo: String!
+                }
+            ")
+            .BindComplexType<Query>();
+    }
+}
+```
+
+We can also add a resolver, by calling `AddResolver()` on the `IRequestExecutorBuilder`.
+
+```csharp
+services
+    .AddGraphQLServer()
+    .AddDocumentFromString(@"
+        type Query {
+          foo: String!
+        }
+    ")
+    .AddResolver("Query", "foo", (context) => "Bar");
+```
+
+</ExampleTabs.Schema>
+</ExampleTabs>
+
+## Async Resolver
+
+Most data fetching operations, like calling a service or communicating with a database, will be asynchronous. In Hot Chocolate we can simply mark our resolver methods and delegates as `async` and everything works out of the box.
+
+<ExampleTabs>
+<ExampleTabs.Annotation>
+
+```csharp
+public class Query
+{
+    public async Task<string> Foo()
+    {
+        await Task.Delay(3000);
+
+        return "Bar";
+    }
+}
+```
+
+</ExampleTabs.Annotation>
+<ExampleTabs.Code>
+
+```csharp
+public class Query
+{
+    public async Task<string> Foo()
+    {
+        await Task.Delay(3000);
+
+        return "Bar";
+    }
+}
+
+public class QueryType: ObjectType<Query>
+{
+    protected override void Configure(IObjectTypeDescriptor<Query> descriptor)
+    {
+        descriptor
+            .Field(f => f.Foo())
+            .Type<NonNullType<StringType>>();
+    }
+}
+```
+
+When using the `Resolve` method, we just have to mark the delegate as `async`.
+
+```csharp
+descriptor
+    .Field("foo")
+    .Resolve(async context =>
+    {
+        await Task.Delay(3000);
+
+        return "Bar";
+    });
+```
+
+</ExampleTabs.Code>
+<ExampleTabs.Schema>
+
+```csharp
+public class Query
+{
+    public async Task<string> Foo()
+    {
+        await Task.Delay(3000);
+
+        return "Bar";
+    }
+}
+
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services
+            .AddGraphQLServer()
+            .AddDocumentFromString(@"
+                type Query {
+                    foo: String!
+                }
+            ")
+            .BindComplexType<Query>();
+    }
+}
+```
+
+When using `AddResolver()`, we just have to mark the delegate as `async`.
+
+```csharp
+services
+    .AddGraphQLServer()
+    .AddDocumentFromString(@"
+        type Query {
+          foo: String!
+        }
+    ")
+    .AddResolver("Query", "foo", async (context) =>
+    {
+        await Task.Delay(3000);
+
+        return "Bar";
+    });
+```
+
+</ExampleTabs.Schema>
+</ExampleTabs>
+
+We can also add a `CancellationToken` as argument to our resolver. Hot Chocolate will automatically cancel this token, if the request has been aborted.
+
+```csharp
+public class Query
+{
+    public async Task<string> Foo(CancellationToken ct)
+    {
+        // Omitted code for brevity
+    }
+}
+```
+
+When using the `Resolve` method in Code-first, the `CancellationToken` is passed as second argument to the delegate.
+
+```csharp
+descriptor
+    .Field("foo")
+    .Resolve((context, ct) =>
+    {
+        // Omitted code for brevity
+    });
+```
+
+We can also access the `CancellationToken` through the `IResolverContext`.
+
+```csharp
+descriptor
+    .Field("foo")
+    .Resolve(context =>
+    {
+        CancellationToken ct = context.RequestAborted;
+
+        // Omitted code for brevity
+    });
+```
+
+# Injecting Services
+
+Resolvers integrate nicely with `Microsoft.Extensions.DependecyInjection`.
+We can access all registered services in our resolvers.
+
+Let's assume we have created a `UserService` and registered it as a service.
+
+```csharp
+public class UserService
+{
+    public List<User> GetUsers()
+    {
+        // Omitted code for brevity
+    }
+}
+
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services
+            .AddSingleton<UserService>()
+            .AddGraphQLServer()
+            .AddQueryType<Query>();
+    }
+}
+```
+
+We can then access the `UserService` in our resolvers like the following.
+
+<ExampleTabs>
+<ExampleTabs.Annotation>
+
+```csharp
+public class Query
+{
+    public List<User> GetUsers([Service] UserService userService)
+        => userService.GetUsers();
+}
+```
+
+</ExampleTabs.Annotation>
+<ExampleTabs.Code>
+
+```csharp
+public class Query
+{
+    public List<User> GetUsers([Service] UserService userService)
+        => userService.GetUsers();
+}
+
+public class QueryType: ObjectType<Query>
+{
+    protected override void Configure(IObjectTypeDescriptor<Query> descriptor)
+    {
+        descriptor
+            .Field(f => f.Foo(default))
+            .Type<ListType<UserType>>();
+    }
+}
+```
+
+When using the `Resolve` method, we can access services through the `IResolverContext`.
+
+```csharp
+descriptor
+    .Field("foo")
+    .Resolve(context =>
+    {
+        var userService = context.Service<UserService>();
+
+        return userService.GetUsers();
+    });
+```
+
+</ExampleTabs.Code>
+<ExampleTabs.Schema>
+
+```csharp
+public class Query
+{
+    public List<User> GetUsers([Service] UserService userService)
+        => userService.GetUsers();
+}
+```
+
+<!-- todo: delegate and more info -->
+
+</ExampleTabs.Schema>
+</ExampleTabs>
+
+## Scoped Services
+
+Scoped services can be injected in a similar fashion. The only difference is that we are now using the `[ScopedService]` instead of the `[Service]` attribute.
+
+```csharp
+public class Query
+{
+    public List<User> GetUsers([ScopedService] UserService userService)
+        => userService.GetUsers();
+}
+```
+
+TODO: How is this done in Code-first?
+
+## IHttpContextAccessor
+
+Like any other service we can also inject the `IHttpContextAccessor` into our resolver. This is useful, if we for example need to set a header or cookie.
+
+```csharp
+public string Foo(string id, [Service] IHttpContextAccessor httpContextAccessor)
+{
+    if (httpContextAccessor.HttpContext != null)
+    {
+        // Omitted code for brevity
+    }
+}
+```
+
+## IResolverContext
+
+The `IResolverContext` is mainly used in delegate resolvers of the Code-first approach, but we can also access it in the Annotation-based approach, by simply injecting it.
+
+```csharp
+public class Query
+{
+    public string Foo(IResolverContext context)
+    {
+        // Omitted code for brevity
+    }
+}
+```
+
+# Accessing parent values
+
+The resolver of each field on a type has access to the value that was resolved for said type.
+
+Let's look at an example. We have the following schema.
+
+```sdl
+type Query {
+  me: User!;
+}
+
+type User {
+  id: ID!;
+  friends: [User!]!;
+}
+```
+
+The `User` schema type is represented by an `User` CLR type. The `id` field is an actual property on this CLR type.
+
+```csharp
+public class User
+{
+    public string Id { get; set; }
+}
+```
+
+`friends` on the other hand is a resolver i.e. method we defined. It depends on the user's `Id` property to compute its result.
+From the point of view of this `friends` resolver, the `User` CLR type is its _parent_.
+
+We can access this so called _parent_ value like the following.
+
+<ExampleTabs>
+<ExampleTabs.Annotation>
+
+TODO: Is the following discouraged?
+
+In the Annotation-based approach we can just access the properties using the `this` keyword.
+
+```csharp
+public class User
+{
+    public string Id { get; set; }
+
+    public List<User> GetFriends()
+    {
+        var currentUserId = this.Id;
+
+        // Omitted code for brevity
+    }
+}
+```
+
+There's also a `[Parent]` attribute that injects the parent into the resolver.
+
+```csharp
+public class User
+{
+    public string Id { get; set; }
+
+    public List<User> GetFriends([Parent] User parent)
+    {
+        var currentUserId = parent.Id;
+
+        // Omitted code for brevity
+    }
+}
+```
+
+This is especially useful when using [type extensions](/docs/hotchocolate/defining-a-schema/extending-types).
+
+</ExampleTabs.Annotation>
+<ExampleTabs.Code>
+
+<!-- todo: non-delegate -->
+
+```csharp
+public class User
+{
+    public string Id { get; set; }
+}
+
+public class UserType : ObjectType<User>
+{
+    protected override void Configure(IObjectTypeDescriptor<User> descriptor)
+    {
+        descriptor
+            .Field("friends")
+            .Resolve(context =>
+            {
+                User currentUser = context.Parent<User>();
+
+                // Omitted code for brevity
+            });
+    }
+}
+```
+
+</ExampleTabs.Code>
+<ExampleTabs.Schema>
+
+TODO
+
+</ExampleTabs.Schema>
+</ExampleTabs>
+
+TODO: describe how to access parents further up in the tree
+
+# Error Handling
+
+TODO
+
+# Context Data
+
+TODO: Cover Scoped and Local here and Global in another "Server" document
+
+# ResolveWith
+
+TODO
