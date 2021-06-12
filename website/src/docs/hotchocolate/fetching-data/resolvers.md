@@ -41,9 +41,11 @@ graph LR
 
 This tree will be traversed by the execution engine, starting with one or more root resolvers. In the above example the `me` field represents the only root resolver.
 
-TODO: Add more explanation
+Field resolvers that are subselections of a field, can only be executed after a value has been resolved for their _parent_ field. In the case of the above example this means that the `name` and `company` resolvers can only run, after the `me` resolver has finished. Resolvers of field subselections can and will be executed in parallel.
 
-If a path branches into two or more paths, the execution engine will follow and execute these paths in parallel. The execution of a path finishes, once there are no more subselections of fields, i.e. when we have reached a scalar value. The operation finishes and the result is returned to the client, once all paths have been executed.
+**Because of this it is important that resolvers, with the exception of top level mutation field resolvers, do not contain side-effects, since their execution order may vary.**
+
+The execution of a request finishes, once each resolver of the selected fields has produced a result.
 
 _This is of course an oversimplification that differs from the actual implementation._
 
@@ -426,7 +428,23 @@ public class Query
 }
 ```
 
-<!-- todo: delegate and more info -->
+When using `AddResolver()`, we can access services through the `IResolverContext`.
+
+```csharp
+services
+    .AddGraphQLServer()
+    .AddDocumentFromString(@"
+        type Query {
+          users: [User!]!
+        }
+    ")
+    .AddResolver("Query", "users", (context) =>
+    {
+        var userService = context.Service<UserService>();
+
+        return userService.GetUsers();
+    });
+```
 
 </ExampleTabs.Schema>
 </ExampleTabs>
@@ -534,8 +552,6 @@ public class User
 
     public List<User> GetFriends([Parent] User parent)
     {
-        var currentUserId = parent.Id;
-
         // Omitted code for brevity
     }
 }
@@ -546,7 +562,19 @@ This is especially useful when using [type extensions](/docs/hotchocolate/defini
 </ExampleTabs.Annotation>
 <ExampleTabs.Code>
 
-TODO: Non delegate version
+```csharp
+public class User
+{
+    public string Id { get; set; }
+
+    public List<User> GetFriends([Parent] User parent)
+    {
+        // Omitted code for brevity
+    }
+}
+```
+
+When using the `Resolve` method, we can access the parent through the `IResolverContext`.
 
 ```csharp
 public class User
@@ -562,7 +590,7 @@ public class UserType : ObjectType<User>
             .Field("friends")
             .Resolve(context =>
             {
-                User currentUser = context.Parent<User>();
+                User parent = context.Parent<User>();
 
                 // Omitted code for brevity
             });
@@ -573,12 +601,12 @@ public class UserType : ObjectType<User>
 </ExampleTabs.Code>
 <ExampleTabs.Schema>
 
-TODO
+TODO: Both bindcomplextype and addresolver
 
 </ExampleTabs.Schema>
 </ExampleTabs>
 
-Due to how Hot Chocolate's execution engine works, we can not only request the _parent_ directly above us, but also _parents_ further up in the tree.
+Due to how Hot Chocolate's execution engine works, we can not only access the _parent_ directly above us, but also _parents_ further up in the tree.
 
 # Context Data
 
