@@ -32,11 +32,11 @@ In Hot Chocolate this query results in the following resolver tree.
 
 ```mermaid
 graph LR
-  A(query: QueryType) --> B(1 me: UserType)
-  B --> C(2 name: StringType)
-  B --> D(2 company: CompanyType)
-  D --> E(3 id: IdType)
-  D --> F(3 name: StringType)
+  A(query: QueryType) --> B(me: UserType)
+  B --> C(name: StringType)
+  B --> D(company: CompanyType)
+  D --> E(id: IdType)
+  D --> F(name: StringType)
 ```
 
 This tree will be traversed by the execution engine, starting with one or more root resolvers. In the above example the `me` field represents the only root resolver.
@@ -307,6 +307,39 @@ descriptor
     });
 ```
 
+## ResolveWith
+
+Thus far we have looked at two ways to specify resolvers in Code-first:
+
+- Add new methods to the CLR type, e.g. the `T` type of `ObjectType<T>`
+- Add new fields to the schema type in the form of delegates
+  ```csharp
+  descriptor.Field("foo").Resolve(context => )
+  ```
+
+But there's a third way. We can describe our field using the `descriptor`, but instead of a resolver delegate, we can point to a method on another class, responsible for resolving this field.
+
+```csharp
+public class FooResolvers
+{
+    public string GetFoo(string arg, [Service] FooService service)
+    {
+        // Omitted code for brevity
+    }
+}
+
+public class QueryType : ObjectType
+{
+    protected override void Configure(IObjectTypeDescriptor descriptor)
+    {
+        descriptor
+            .Field("foo")
+            .Argument("arg", a => a.Type<NonNullType<StringType>>())
+            .ResolveWith<FooResolvers>(r => r.GetFoo(default, default));
+    }
+}
+```
+
 # Injecting Services
 
 Resolvers integrate nicely with `Microsoft.Extensions.DependecyInjection`.
@@ -513,7 +546,7 @@ This is especially useful when using [type extensions](/docs/hotchocolate/defini
 </ExampleTabs.Annotation>
 <ExampleTabs.Code>
 
-<!-- todo: non-delegate -->
+TODO: Non delegate version
 
 ```csharp
 public class User
@@ -545,16 +578,8 @@ TODO
 </ExampleTabs.Schema>
 </ExampleTabs>
 
-TODO: describe how to access parents further up in the tree
-
-# Error Handling
-
-TODO
+Due to how Hot Chocolate's execution engine works, we can not only request the _parent_ directly above us, but also _parents_ further up in the tree.
 
 # Context Data
 
 TODO: Cover Scoped and Local here and Global in another "Server" document
-
-# ResolveWith
-
-TODO
