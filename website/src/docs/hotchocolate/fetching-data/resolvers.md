@@ -607,7 +607,3 @@ TODO: Both bindcomplextype and addresolver
 </ExampleTabs>
 
 Due to how Hot Chocolate's execution engine works, we can not only access the _parent_ directly above us, but also _parents_ further up in the tree.
-
-# Context Data
-
-TODO: Cover Scoped and Local here and Global in another "Server" document
