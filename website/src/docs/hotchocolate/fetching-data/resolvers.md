@@ -167,111 +167,9 @@ services
 
 ## Async Resolver
 
-Most data fetching operations, like calling a service or communicating with a database, will be asynchronous. In Hot Chocolate we can simply mark our resolver methods and delegates as `async` and everything works out of the box.
+Most data fetching operations, like calling a service or communicating with a database, will be asynchronous.
 
-<ExampleTabs>
-<ExampleTabs.Annotation>
-
-```csharp
-public class Query
-{
-    public async Task<string> Foo()
-    {
-        await Task.Delay(3000);
-
-        return "Bar";
-    }
-}
-```
-
-</ExampleTabs.Annotation>
-<ExampleTabs.Code>
-
-```csharp
-public class Query
-{
-    public async Task<string> Foo()
-    {
-        await Task.Delay(3000);
-
-        return "Bar";
-    }
-}
-
-public class QueryType: ObjectType<Query>
-{
-    protected override void Configure(IObjectTypeDescriptor<Query> descriptor)
-    {
-        descriptor
-            .Field(f => f.Foo())
-            .Type<NonNullType<StringType>>();
-    }
-}
-```
-
-When using the `Resolve` method, we just have to mark the delegate as `async`.
-
-```csharp
-descriptor
-    .Field("foo")
-    .Resolve(async context =>
-    {
-        await Task.Delay(3000);
-
-        return "Bar";
-    });
-```
-
-</ExampleTabs.Code>
-<ExampleTabs.Schema>
-
-```csharp
-public class Query
-{
-    public async Task<string> Foo()
-    {
-        await Task.Delay(3000);
-
-        return "Bar";
-    }
-}
-
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services
-            .AddGraphQLServer()
-            .AddDocumentFromString(@"
-                type Query {
-                    foo: String!
-                }
-            ")
-            .BindComplexType<Query>();
-    }
-}
-```
-
-When using `AddResolver()`, we just have to mark the delegate as `async`.
-
-```csharp
-services
-    .AddGraphQLServer()
-    .AddDocumentFromString(@"
-        type Query {
-          foo: String!
-        }
-    ")
-    .AddResolver("Query", "foo", async (context) =>
-    {
-        await Task.Delay(3000);
-
-        return "Bar";
-    });
-```
-
-</ExampleTabs.Schema>
-</ExampleTabs>
+In Hot Chocolate we can simply mark our resolver methods and delegates as `async` or return a `Task<T>` and everything works out of the box.
 
 We can also add a `CancellationToken` as argument to our resolver. Hot Chocolate will automatically cancel this token, if the request has been aborted.
 
@@ -285,7 +183,7 @@ public class Query
 }
 ```
 
-When using the `Resolve` method in Code-first, the `CancellationToken` is passed as second argument to the delegate.
+When using a delegate resolver, the `CancellationToken` is passed as second argument to the delegate.
 
 ```csharp
 descriptor
@@ -296,7 +194,7 @@ descriptor
     });
 ```
 
-We can also access the `CancellationToken` through the `IResolverContext`.
+The `CancellationToken` can also be accessed through the `IResolverContext`.
 
 ```csharp
 descriptor
@@ -341,6 +239,14 @@ public class QueryType : ObjectType
     }
 }
 ```
+
+# Arguments
+
+We can access the arguments we defined in the schema in our resolver, like regular arguments of a function.
+
+There are also specific arguments that will be automatically populated by Hot Chocolate, when the resolver is executed. These include [Dependency injection services](#injecting-services), [DataLoaders](/docs/hotchocolate/fetching-data/dataloader), state, or even context like a [_parent_](#accessing-parent-values) value.
+
+[Learn more about arguments](/docs/hotchocolate/defining-a-schema/arguments)
 
 # Injecting Services
 

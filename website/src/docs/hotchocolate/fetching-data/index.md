@@ -23,7 +23,7 @@ Therefore we prepared tutorials on how to fetch data from a
 
 # Pagination
 
-Hot Chocolate provides [pagination](/docs/hotchocolate/fetching-data/dataloader) capabilities out of the box. They allow us to expose pagination in a standardized way and can even take care of crafting the necessary pagination queries to our databases.
+Hot Chocolate provides [pagination](/docs/hotchocolate/fetching-data/pagination) capabilities out of the box. They allow us to expose pagination in a standardized way and can even take care of crafting the necessary pagination queries to our databases.
 
 # Filtering and Sorting
 
