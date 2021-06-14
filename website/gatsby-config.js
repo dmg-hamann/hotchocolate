@@ -210,23 +210,23 @@ module.exports = {
               allMdx(
                 limit: 100
                 filter: { frontmatter: { path: { regex: "//blog(/.*)?/" } } }
-                sort: { order: DESC, fields: [frontmatter___date] },
+                sort: { order: DESC, fields: [frontmatter___date] }
               ) {
-                edges {
-                  node {
-                    excerpt
-                    html
-                    frontmatter {
-                      title
-                      author
-                      authorUrl
-                      date
-                      path
-                      featuredImage {
-                        childImageSharp {
-                          fluid(maxWidth: 800, pngQuality: 90) {
-                            src
-                          }
+                nodes {
+                  fields {
+                    slug
+                  }
+                  excerpt
+                  html
+                  frontmatter {
+                    title
+                    author
+                    authorUrl
+                    date
+                    featuredImage {
+                      childImageSharp {
+                        fluid(maxWidth: 800, pngQuality: 90) {
+                          src
                         }
                       }
                     }
@@ -243,13 +243,14 @@ module.exports = {
                 },
               },
             }) =>
-              allMdx.edges.map(({ node }) => {
+              allMdx.nodes.map((node) => {
                 const date = new Date(Date.parse(node.frontmatter.date));
                 const imgSrcPattern = new RegExp(
                   `(${pathPrefix})?/static/`,
                   "g"
                 );
-                const link = siteUrl + pathPrefix + node.frontmatter.path;
+
+                const link = siteUrl + node.fields.slug;
                 let image = node.frontmatter.featuredImage
                   ? siteUrl +
                     node.frontmatter.featuredImage.childImageSharp.fluid.src
